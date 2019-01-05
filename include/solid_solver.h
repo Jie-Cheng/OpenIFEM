@@ -13,6 +13,7 @@
 #include <deal.II/dofs/dof_tools.h>
 
 #include <deal.II/fe/fe.h>
+#include <deal.II/fe/fe_dgq.h>
 #include <deal.II/fe/fe_q.h>
 #include <deal.II/fe/fe_system.h>
 #include <deal.II/fe/fe_tools.h>
@@ -117,9 +118,9 @@ namespace Solid
     Triangulation<dim> &triangulation;
     Parameters::AllParameters parameters;
     DoFHandler<dim> dof_handler;
-    DoFHandler<dim> scalar_dof_handler; //!< Scalar-valued DoFHandler.
+    DoFHandler<dim> dg_dof_handler; //!< DoFHandler for nodal strain/stress
     FESystem<dim> fe;
-    FE_Q<dim> scalar_fe; //!< Scalar FE for nodal strain/stress.
+    FESystem<dim> dg_fe; //!< DFE for nodal strain/stress.
     const QGauss<dim>
       volume_quad_formula; //!< Quadrature formula for volume integration.
     const QGauss<dim - 1>
@@ -155,12 +156,10 @@ namespace Solid
     Vector<double> previous_displacement;
 
     /**
-     * Nodal strain and stress obtained by taking the average of surrounding
-     * cell-averaged strains and stresses. Their sizes are
-     * [dim, dim, scalar_dof_handler.n_dofs()], i.e., stress[i][j][k]
-     * denotes sigma_{ij} at vertex k.
+     * Nodal strain and stress are stored as vectors but viewed as tensors.
+     * For each support point there are dim * dim components.
      */
-    mutable std::vector<std::vector<Vector<double>>> strain, stress;
+    mutable Vector<double> strain, stress;
 
     Utils::Time time;
     mutable TimerOutput timer;

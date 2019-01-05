@@ -313,16 +313,7 @@ namespace MPI
     Vector<double> localized_solid_velocity(solid_solver.current_velocity);
     Vector<double> localized_solid_acceleration(
       solid_solver.current_acceleration);
-    std::vector<std::vector<Vector<double>>> localized_stress(
-      dim, std::vector<Vector<double>>(dim));
-    for (unsigned int i = 0; i < dim; ++i)
-      {
-        for (unsigned int j = 0; j < dim; ++j)
-          {
-            localized_stress[i][j] = solid_solver.stress[i][j];
-          }
-      }
-
+    Vector<double> stress(solid_solver.stress);
     for (auto f_cell = fluid_solver.dof_handler.begin_active();
          f_cell != fluid_solver.dof_handler.end();
          ++f_cell)
@@ -369,6 +360,7 @@ namespace MPI
                 ptr[0]->fsi_acceleration[i] =
                   parameters.solid_rho * (fluid_acc[i] - solid_acc[i]);
               }
+            /*
             // Solid stress at fluid cell center
             SymmetricTensor<2, dim> solid_sigma;
             for (unsigned int i = 0; i < dim; ++i)
@@ -387,6 +379,7 @@ namespace MPI
             ptr[0]->fsi_stress =
               -p[0] * Physics::Elasticity::StandardTensors<dim>::I +
               2 * parameters.viscosity * sym_grad_v[0] - solid_sigma;
+              */
           }
       }
     move_solid_mesh(false);

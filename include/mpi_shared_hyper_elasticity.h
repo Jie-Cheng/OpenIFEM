@@ -100,9 +100,9 @@ namespace Solid
       using SharedSolidSolver<dim>::triangulation;
       using SharedSolidSolver<dim>::parameters;
       using SharedSolidSolver<dim>::dof_handler;
-      using SharedSolidSolver<dim>::scalar_dof_handler;
+      using SharedSolidSolver<dim>::dg_dof_handler;
       using SharedSolidSolver<dim>::fe;
-      using SharedSolidSolver<dim>::scalar_fe;
+      using SharedSolidSolver<dim>::dg_fe;
       using SharedSolidSolver<dim>::volume_quad_formula;
       using SharedSolidSolver<dim>::face_quad_formula;
       using SharedSolidSolver<dim>::constraints;
@@ -124,7 +124,7 @@ namespace Solid
       using SharedSolidSolver<dim>::time;
       using SharedSolidSolver<dim>::timer;
       using SharedSolidSolver<dim>::locally_owned_dofs;
-      using SharedSolidSolver<dim>::locally_owned_scalar_dofs;
+      using SharedSolidSolver<dim>::locally_owned_dg_dofs;
       using SharedSolidSolver<dim>::locally_relevant_dofs;
       using SharedSolidSolver<dim>::times_and_names;
       using SharedSolidSolver<dim>::cell_property;

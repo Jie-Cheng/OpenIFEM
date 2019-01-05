@@ -12,9 +12,9 @@ namespace Solid
       : triangulation(tria),
         parameters(parameters),
         dof_handler(triangulation),
-        scalar_dof_handler(triangulation),
+        dg_dof_handler(triangulation),
         fe(FE_Q<dim>(parameters.solid_degree), dim),
-        scalar_fe(parameters.solid_degree),
+        dg_fe(FE_DGQ<dim>(parameters.solid_degree), dim * dim),
         volume_quad_formula(parameters.solid_degree + 1),
         face_quad_formula(parameters.solid_degree + 1),
         mpi_communicator(MPI_COMM_WORLD),
@@ -34,7 +34,7 @@ namespace Solid
     template <int dim>
     SharedSolidSolver<dim>::~SharedSolidSolver()
     {
-      scalar_dof_handler.clear();
+      dg_dof_handler.clear();
       dof_handler.clear();
       timer.print_summary();
     }
@@ -50,18 +50,17 @@ namespace Solid
 
       dof_handler.distribute_dofs(fe);
       DoFRenumbering::subdomain_wise(dof_handler);
-      scalar_dof_handler.distribute_dofs(scalar_fe);
-      DoFRenumbering::subdomain_wise(scalar_dof_handler);
+      dg_dof_handler.distribute_dofs(dg_fe);
+      DoFRenumbering::subdomain_wise(dg_dof_handler);
 
       // Extract the locally owned and relevant dofs
       const std::vector<IndexSet> locally_owned_dofs_per_proc =
         DoFTools::locally_owned_dofs_per_subdomain(dof_handler);
       locally_owned_dofs = locally_owned_dofs_per_proc[this_mpi_process];
 
-      const std::vector<IndexSet> locally_owned_scalar_dofs_per_proc =
-        DoFTools::locally_owned_dofs_per_subdomain(scalar_dof_handler);
-      locally_owned_scalar_dofs =
-        locally_owned_scalar_dofs_per_proc[this_mpi_process];
+      const std::vector<IndexSet> locally_owned_dg_dofs_per_proc =
+        DoFTools::locally_owned_dofs_per_subdomain(dg_dof_handler);
+      locally_owned_dg_dofs = locally_owned_dg_dofs_per_proc[this_mpi_process];
 
       // The Dirichlet boundary conditions are stored in the AffineConstraints
       // object. It does not need to modify the sparse matrix after assembly,
@@ -140,18 +139,11 @@ namespace Solid
 
       previous_displacement.reinit(locally_owned_dofs, mpi_communicator);
 
-      strain = std::vector<std::vector<PETScWrappers::MPI::Vector>>(
-        dim,
-        std::vector<PETScWrappers::MPI::Vector>(
-          dim,
-          PETScWrappers::MPI::Vector(locally_owned_scalar_dofs,
-                                     mpi_communicator)));
-      stress = std::vector<std::vector<PETScWrappers::MPI::Vector>>(
-        dim,
-        std::vector<PETScWrappers::MPI::Vector>(
-          dim,
-          PETScWrappers::MPI::Vector(locally_owned_scalar_dofs,
-                                     mpi_communicator)));
+      strain =
+        PETScWrappers::MPI::Vector(locally_owned_dg_dofs, mpi_communicator);
+
+      stress =
+        PETScWrappers::MPI::Vector(locally_owned_dg_dofs, mpi_communicator);
 
       // Set up cell property, which contains the FSI traction required in FSI
       // simulation
@@ -198,18 +190,8 @@ namespace Solid
       Vector<double> displacement(current_displacement);
       Vector<double> velocity(current_velocity);
 
-      std::vector<std::vector<Vector<double>>> localized_strain(
-        dim, std::vector<Vector<double>>(dim));
-      std::vector<std::vector<Vector<double>>> localized_stress(
-        dim, std::vector<Vector<double>>(dim));
-      for (unsigned int i = 0; i < dim; ++i)
-        {
-          for (unsigned int j = 0; j < dim; ++j)
-            {
-              localized_strain[i][j] = strain[i][j];
-              localized_stress[i][j] = stress[i][j];
-            }
-        }
+      Vector<double> localized_strain(strain);
+      Vector<double> localized_stress(stress);
       if (this_mpi_process == 0)
         {
           std::vector<std::string> solution_names(dim, "displacements");
@@ -249,33 +231,21 @@ namespace Solid
             }
           data_out.add_data_vector(mat, "material_id");
 
-          data_out.add_data_vector(
-            scalar_dof_handler, localized_strain[0][0], "Exx");
-          data_out.add_data_vector(
-            scalar_dof_handler, localized_strain[0][1], "Exy");
-          data_out.add_data_vector(
-            scalar_dof_handler, localized_strain[1][1], "Eyy");
-          data_out.add_data_vector(
-            scalar_dof_handler, localized_stress[0][0], "Sxx");
-          data_out.add_data_vector(
-            scalar_dof_handler, localized_stress[0][1], "Sxy");
-          data_out.add_data_vector(
-            scalar_dof_handler, localized_stress[1][1], "Syy");
-          if (dim == 3)
-            {
-              data_out.add_data_vector(
-                scalar_dof_handler, localized_strain[0][2], "Exz");
-              data_out.add_data_vector(
-                scalar_dof_handler, localized_strain[1][2], "Eyz");
-              data_out.add_data_vector(
-                scalar_dof_handler, localized_strain[2][2], "Ezz");
-              data_out.add_data_vector(
-                scalar_dof_handler, localized_stress[0][2], "Sxz");
-              data_out.add_data_vector(
-                scalar_dof_handler, localized_stress[1][2], "Syz");
-              data_out.add_data_vector(
-                scalar_dof_handler, localized_stress[2][2], "Szz");
-            }
+          // strain and stress
+          data_component_interpretation = std::vector<
+            DataComponentInterpretation::DataComponentInterpretation>(
+            dim * dim,
+            DataComponentInterpretation::component_is_part_of_tensor);
+          solution_names = std::vector<std::string>(dim * dim, "E");
+          data_out.add_data_vector(dg_dof_handler,
+                                   localized_strain,
+                                   solution_names,
+                                   data_component_interpretation);
+          solution_names = std::vector<std::string>(dim * dim, "S");
+          data_out.add_data_vector(dg_dof_handler,
+                                   localized_stress,
+                                   solution_names,
+                                   data_component_interpretation);
 
           data_out.build_patches();
 

@@ -151,9 +151,9 @@ namespace Solid
       Triangulation<dim> &triangulation;
       Parameters::AllParameters parameters;
       DoFHandler<dim> dof_handler;
-      DoFHandler<dim> scalar_dof_handler; //!< Scalar-valued DoFHandler.
+      DoFHandler<dim> dg_dof_handler; //!< DoFHandler for nodal strain/stress
       FESystem<dim> fe;
-      FE_Q<dim> scalar_fe; //!< Scalar FE for nodal strain/stress.
+      FESystem<dim> dg_fe; //!< DFE for nodal strain/stress.
       const QGauss<dim>
         volume_quad_formula; //!< Quadrature formula for volume integration.
       const QGauss<dim - 1>
@@ -188,13 +188,10 @@ namespace Solid
       PETScWrappers::MPI::Vector previous_displacement;
 
       /**
-       * Nodal strain and stress obtained by taking the average of surrounding
-       * cell-averaged strains and stresses. Their sizes are
-       * [dim, dim, scalar_dof_handler.n_dofs()], i.e., stress[i][j][k]
-       * denotes sigma_{ij} at vertex k.
+       * Nodal strain and stress are stored as vectors but viewed as tensors.
+       * For each support point there are dim * dim components.
        */
-      mutable std::vector<std::vector<PETScWrappers::MPI::Vector>> strain,
-        stress;
+      mutable PETScWrappers::MPI::Vector strain, stress;
 
       MPI_Comm mpi_communicator;
       const unsigned int n_mpi_processes;
@@ -203,7 +200,7 @@ namespace Solid
       Utils::Time time;
       mutable TimerOutput timer;
       IndexSet locally_owned_dofs;
-      IndexSet locally_owned_scalar_dofs;
+      IndexSet locally_owned_dg_dofs;
       IndexSet locally_relevant_dofs;
       mutable std::vector<std::pair<double, std::string>> times_and_names;
 
